@@ -1,11 +1,19 @@
+require('dotenv').config();
+const dns = require('dns');
+dns.setServers(['1.1.1.1']);
 const express = require('express');
 const bodyParser = require('body-parser');
 const passport = require('passport');
-const authJwtController = require('./auth_jwt'); // You're not using authController, consider removing it
+const authJwtController = require('./auth_jwt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const User = require('./Users');
-const Movie = require('./Movies'); // You're not using Movie, consider removing it
+const Movie = require('./Movies');
+
+mongoose.connect(process.env.DB)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => { console.error('MongoDB connection error:', err); process.exit(1); });
 
 const app = express();
 app.use(cors());
@@ -68,18 +76,81 @@ router.post('/signin', async (req, res) => { // Use async/await
 });
 
 router.route('/movies')
-    .get(authJwtController.isAuthenticated, async (req, res) => {
-        return res.status(500).json({ success: false, message: 'GET request not supported' });
-    })
-    .post(authJwtController.isAuthenticated, async (req, res) => {
-        return res.status(500).json({ success: false, message: 'POST request not supported' });
-    });
+  .get(authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const movies = await Movie.find({})
+      res.status(200).json({ success: true, message: movies })
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message })
+    }
+  })
+  .post(authJwtController.isAuthenticated, async (req, res) => {
+    if (!req.body.title || !req.body.actors || req.body.actors.length === 0) {
+      return res.status(400).json({ success: false, message: 'Movie must include a title and at least one actor.' });
+    }
+    try {
+      const movie = new Movie({
+        title: req.body.title,
+        releaseDate: req.body.releaseDate,
+        genre: req.body.genre,
+        actors: req.body.actors,
+      });
+      await movie.save();
+      res.status(201).json({ success: true, message: 'Movie saved.', movie });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  })
+  .all(authJwtController.isAuthenticated, async (req, res) => {
+    res.status(405).json({ success: false, message: "Non-Supported Action" });
+  })
+
+router.route('/movies/:movieparameter')
+  .get(authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const movie = await Movie.findOne({ title: req.params.movieparameter });
+      if (!movie) {
+        return res.status(404).json({ success: false, message: "Movie Not Found" });
+      }
+      res.status(200).json({ success: true, movie });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  })
+  .put(authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const movie = await Movie.findOneAndUpdate({ title: req.params.movieparameter },
+        { $set: req.body },
+        { new: true }
+      );
+      if (!movie) {
+        return res.status(404).json({ success: false, message: "Movie Not Found" });
+      }
+      res.status(200).json({ success: true, message: "Movie updated", movie });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  })
+  .delete(authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const movie = await Movie.findOneAndDelete({ title: req.params.movieparameter });
+      if (!movie) {
+        return res.status(404).json({ success: false, message: "Movie Not Found" });
+      }
+      res.status(200).json({ success: true, message: "Movie deleted", movie });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  })
+  .all(authJwtController.isAuthenticated, async (req, res) => {
+    res.status(405).json({ success: false, message: "Non-Supported Action" });
+  })
 
 app.use('/', router);
 
 const PORT = process.env.PORT || 8080; // Define PORT before using it
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app; // for testing only
