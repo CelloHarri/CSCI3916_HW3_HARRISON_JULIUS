@@ -48,14 +48,14 @@ describe('Test Movie Routes', () => {
             const signupRes = await chai.request(server)
                 .post('/signup')
                 .send(testData.user);
-            
+
             signupRes.should.have.status(201);
             signupRes.body.success.should.be.eql(true);
 
             const signinRes = await chai.request(server)
                 .post('/signin')
                 .send(testData.user);
-                
+
             signinRes.should.have.status(200);
             signinRes.body.should.have.property('token');
             token = signinRes.body.token;
@@ -68,7 +68,7 @@ describe('Test Movie Routes', () => {
                 .post('/movies')
                 .set('Authorization', token)
                 .send(testData.movie);
-                
+
             res.should.have.status(201);
             res.body.should.be.an('object');
             res.body.should.have.property('movie');
@@ -79,13 +79,33 @@ describe('Test Movie Routes', () => {
             const res = await chai.request(server)
                 .get('/movies')
                 .set('Authorization', token);
-                
+
             res.should.have.status(200);
-            res.body.should.be.an('array');
-            res.body.should.have.length.of.at.least(1);
-            
-            const addedMovie = res.body.find(m => m.title === testData.movie.title);
+            res.body.message.should.be.an('array');
+            res.body.message.should.have.length.of.at.least(1);
+
+            const addedMovie = res.body.message.find(m => m.title === testData.movie.title);
             addedMovie.should.have.property('genre', testData.movie.genre);
+        });
+
+        it('should return 400 when saving a movie with no actors', async () => {
+            const res = await chai.request(server)
+                .post('/movies')
+                .set('Authorization', token)
+                .send({ title: "No Actors", releaseDate: "2000", genre: "Adventure" });
+
+            res.should.have.status(400);
+            res.body.success.should.be.eql(false);
+        });
+
+        it('should return 400 when saving a movie with no title', async () => {
+            const res = await chai.request(server)
+                .post('/movies')
+                .set('Authorization', token)
+                .send({ releaseDate: "2000", genre: "Adventure", actors: [{ actorName: "Bob", characterName: "Paul" }] });
+
+            res.should.have.status(400);
+            res.body.success.should.be.eql(false);
         });
     });
 

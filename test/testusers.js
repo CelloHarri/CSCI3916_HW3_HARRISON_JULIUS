@@ -38,19 +38,29 @@ describe('Register, Login User', () => {
             const signupRes = await chai.request(server)
                 .post('/signup')
                 .send(login_details);
-                
+
             signupRes.should.have.status(201);
             signupRes.body.success.should.be.eql(true);
-    
+
             const signinRes = await chai.request(server)
                 .post('/signin')
                 .send(login_details);
-                
+
             signinRes.should.have.status(200);
             signinRes.body.should.have.property('token');
-            
+
             // Store token if needed
             let token = signinRes.body.token;
+        });
+        it('should return 409 if user already exists', async () => {
+            // First Signup
+            await chai.request(server).post('/signup').send(login_details);
+
+            // Second Signup with same username
+            const res = await chai.request(server).post('/signup').send(login_details);
+
+            res.should.have.status(409);
+            res.body.success.should.be.eql(false);
         });
     });
 });
